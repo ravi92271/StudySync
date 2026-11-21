@@ -1,26 +1,46 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: var(--color-surface);
+  --foreground: var(--color-ink);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-display: "Space Grotesk", sans-serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono);  
+
+  /* Brand (indigo) */
+  --color-brand: #4338CA;
+  --color-brand-dark: #3730A3;
+  --color-brand-light: #A5B4FC;
+  --color-brand-tint: #E4E4FA;
+  --color-brand-wash: #F5F5FF;
+  --color-brand-dashed: #A5A5E8;
+
+  /* Ink (text and dark sections) */
+  --color-ink: #14142B;
+  --color-ink-card: #20203F;
+  --color-ink-body: #4B4B66;
+  --color-ink-muted: #55556E;
+  --color-ink-soft: #C8C8E0;
+
+  /* Surface */
+  --color-surface: #F7F7FB;
+  --color-surface-border: #E3E3F0;
+  --color-surface-line: #DADAEA;
+
+  /* Success (correct answers) */
+  --color-success: #0F6B62;
+  --color-success-dark: #0B4F49;
+  --color-success-tint: #E3F5F1;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
