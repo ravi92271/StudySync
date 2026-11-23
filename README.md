@@ -1,6 +1,6 @@
 # StudySync
 
-StudySync is a student project for organizing course materials and, eventually, generating study notes and practice quizzes from them. This repository contains a Next.js website (`frontend/`) and a Python FastAPI server (`backend/`). Both run on your own computer during development.
+StudySync is a student project for organizing course materials and generating study summaries and practice quizzes from them, using an AI model that runs on your own computer. This repository contains a Next.js website (`frontend/`) and a Python FastAPI server (`backend/`). Both run on your own computer during development.
 
 ## Before you start
 
@@ -58,9 +58,9 @@ npm ci
 npm run dev
 ```
 
-`npm ci` installs the exact JavaScript dependencies recorded in `package-lock.json`. Leave this terminal open too. Visit [http://localhost:3000](http://localhost:3000/) to see the website. Seeing the default Next.js page is expected for now.
+`npm ci` installs the exact JavaScript dependencies recorded in `package-lock.json`. Leave this terminal open too. Visit [http://localhost:3000](http://localhost:3000/) to see the website. It expects the backend (above) to be running on port 8000.
 
-Keep both terminals running while working on the project. Press **Ctrl+C** in each terminal to stop its server. The website and API currently run independently; seeing both pages does not yet mean uploads or quiz generation are implemented.
+Keep both terminals running while working on the project. Press **Ctrl+C** in each terminal to stop its server. Uploading and reading documents works as soon as both servers are running. Summaries and quizzes additionally need Ollama (next section).
 
 ## Where things go
 
@@ -76,17 +76,69 @@ Keep both terminals running while working on the project. Press **Ctrl+C** in ea
 
 When adding a Python package, run `uv add <package-name>` **inside `backend/`**; for a frontend package, run `npm install <package-name>` **inside `frontend/`**. Commit changes to the relevant dependency file **and** lockfile so teammates install the same packages. Do not commit `backend/.venv/`, `frontend/node_modules/`, or generated local data.
 
-## Planned next steps
+## Using StudySync
 
-1. Add a PDF upload endpoint and a form on the website. FastAPI file uploads will need `uv add python-multipart` in `backend/`.
-2. Extract text from the uploaded document and display it in the website. PDF, Word, and PowerPoint parsing packages are already in the backend dependency list.
-3. Save class and document information in a local SQLite database (Python includes `sqlite3`), and keep uploaded files in a local folder. Ignore both local data and uploaded files in Git.
-4. Generate summaries and quizzes and evaluate whether questions reflect their source material. LangChain and its Ollama integration are installed as Python dependencies, but a local Ollama model is **not** set up or called by the application yet.
+1. Add a **class** in the left sidebar (for example "Biology 101").
+2. Use the upload form to add a **PDF, Word (.docx) or PowerPoint (.pptx)** file (up to 25 MB). The text is extracted and shown in the **Extracted text** tab. Older `.doc`/`.ppt` files must be re-saved in the newer format, and scanned PDFs (images only) are rejected because there is no OCR yet.
+3. Open the **Summary** or **Quiz** tab and press Generate.
+
+Classes and documents are saved in a local SQLite database, and the uploaded files are kept in a local folder. Both live in `backend/data/`, which Git ignores. Delete that folder to start fresh. Set `STUDYSYNC_DATA_DIR` to store the data somewhere else.
+
+## Set up Ollama (needed for summaries and quizzes)
+
+Summaries and quizzes are written by a language model running locally through [Ollama](https://ollama.com), so your course material never leaves your computer.
+
+1. Install Ollama from [ollama.com/download](https://ollama.com/download) and make sure it is running.
+2. Download a model once: `ollama pull llama3.2`
+3. Reload the website. A yellow banner appears at the top whenever Ollama isn't reachable or the model isn't downloaded, and tells you what to do.
+
+To use a different model or server, set `STUDYSYNC_OLLAMA_MODEL` (default `llama3.2`) or `STUDYSYNC_OLLAMA_URL` (default `http://localhost:11434`) before starting the backend. Larger models write better questions but are slower. Generation on a laptop can take from several seconds to a few minutes.
+
+### How quiz questions are checked against the source
+
+Small local models sometimes invent facts, so every generated question is checked, and the result is shown as a badge on the question. Open **Source check** on a question to see the evidence.
+
+- **Evidence quote.** The model must quote the sentence from your document that answers the question. StudySync measures how much of that quote really appears, word for word, in the passage the question was written from.
+- **Independent read.** A second model call sees the passage and the question with the answer key *hidden* and picks an answer, or says the passage doesn't contain one. If it agrees with the key, the question is answerable from your material.
+
+| Badge | Meaning |
+| --- | --- |
+| **Matches source** | The quote is in the document and the independent read agrees with the answer key. |
+| **Check this one** | The quote is in the document, but the independent read disagreed or couldn't decide, so the question or its answer key may be flawed. |
+| **Not supported by source** | The quoted evidence is not in the document. The question is probably invented. |
+
+This is a safety net, not a guarantee: the same small model does the checking, so verify anything important against your notes.
+
+## API
+
+With the backend running, [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) lists every endpoint. The main ones:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET/POST /classes`, `DELETE /classes/{id}` | List, create and delete classes |
+| `GET /classes/{id}/documents` | List a class's documents |
+| `POST /classes/{id}/documents` | Upload a PDF, DOCX or PPTX (multipart form field `file`) |
+| `GET /documents/{id}` | Document with extracted text, summary and latest quiz |
+| `GET /documents/{id}/file`, `DELETE /documents/{id}` | Download the original, delete a document |
+| `POST /documents/{id}/summary` | Generate a summary |
+| `POST /documents/{id}/quiz` | Generate a graded quiz (`{"num_questions": 5}`) |
+| `GET /llm/status` | Is Ollama reachable and is the model downloaded? |
+
+### Run the backend tests
+
+```
+cd backend
+uv run pytest
+```
+
+The tests use a fake model, so they run without Ollama.
 
 ## If something does not work
 
 - **`uv`, `node`, or `npm` is not recognized:** Install the missing tool from the links above, then open a new terminal.
 - **`npm ci` fails with a Node version error:** Update Node.js to a supported version (20.9 or newer).
 - **`Address already in use` / a port is busy:** Stop the other server using that port with Ctrl+C, then rerun the command.
-- **The backend works but the website still shows Next.js branding:** That is the current starter page, not a setup error.
+- **The website says it can't reach the backend:** Start the backend (terminal 1). If it runs on a different address, set `NEXT_PUBLIC_API_URL` before `npm run dev`.
+- **"Could not reach Ollama" or "model is not downloaded":** Install and start Ollama, then run `ollama pull llama3.2` (see above).
+- **"No text could be extracted":** The file is probably a scan or images only. Use a version with selectable text.
 - **Changes are not appearing:** Check that the corresponding terminal is still running and that you are editing files in the correct folder.
